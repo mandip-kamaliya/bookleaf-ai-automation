@@ -1,0 +1,410 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bookleaf-query",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -560,
+        -112
+      ],
+      "id": "8732f5ff-b139-4269-91ec-6d01eda81bde",
+      "name": "Webhook",
+      "webhookId": "13891740-0025-4e27-80a2-78be4d0d9463"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Authorization\": \"Bearer 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\",\n  \"Content-Type\": \"application/json\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an assistant that extracts information from author queries for BookLeaf Publishing.\\n\\nExtract the following from the query:\\n1. author_email: The email address mentioned (or null if not found)\\n2. intent: One of [book_status, royalty_status, publishing_timeline, add_on_status, isbn, general_query]\\n3. confidence: Your confidence score 0-100 that you understood the query correctly\\n\\nRespond ONLY in this JSON format with no extra text:\\n{\\\"author_email\\\": \\\"email or null\\\", \\\"intent\\\": \\\"intent_type\\\", \\\"confidence\\\": 85}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.body.question }}\\nAuthor email if provided: {{ $json.body.email }}\"\n    }\n  ],\n  \"max_tokens\": 200,\n  \"temperature\": 0\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -352,
+        -112
+      ],
+      "id": "2f9be334-8e5e-489d-b92a-bd9f62549f4a",
+      "name": "Extract Intent"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9b291806-c4db-4f56-ba1d-09526099dbfb",
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": 80,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        64,
+        -112
+      ],
+      "id": "a8d54d56-b395-4781-870d-0e1a9ddb0ee3",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"answer\": \"I'm not fully confident I understood your query correctly. Let me connect you with our support team who will assist you shortly. Please email us at support@bookleafpub.com\",\n  \"escalated\": true,\n  \"confidence\": \"{{ $json.confidence }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        368,
+        -128
+      ],
+      "id": "ea15cd5f-aeaa-4303-8f5c-6e1d0107dc15",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "url": "=https://cukkuiruamqmxhmssgdt.supabase.co/rest/v1/authors?email=eq.{{ $json.author_email }}&select=*",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"apikey\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1a2t1aXJ1YW1xbXhobXNzZ2R0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTgzNzUsImV4cCI6MjA5NzA5NDM3NX0.uBqq1DGeBnEwVOFHG1jOXVU5x3S2x8iaKBpNWVGw3AY\",\n  \"Authorization\": \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1a2t1aXJ1YW1xbXhobXNzZ2R0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1MTgzNzUsImV4cCI6MjA5NzA5NDM3NX0.uBqq1DGeBnEwVOFHG1jOXVU5x3S2x8iaKBpNWVGw3AY\",\n  \"Content-Type\": \"application/json\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -560,
+        160
+      ],
+      "id": "62c68bf4-2896-44e0-95b3-402440754b32",
+      "name": "Query Supabase"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dbResults = $input.first()?.json;\nconst intentData = $('Parse Intent').first().json;\n\n// 1. Check if the database response is empty or invalid\nif (!dbResults || Object.keys(dbResults).length === 0 || dbResults.error) {\n  return [{\n    json: {\n      found: false,\n      author: null,\n      intent: intentData.intent,\n      original_question: intentData.original_question,\n      confidence: intentData.confidence\n    }\n  }];\n}\n\n// 2. Extract author data (handles both array and object responses)\nlet authorData = dbResults;\nif (Array.isArray(dbResults)) {\n  if (dbResults.length === 0) {\n    return [{\n      json: {\n        found: false,\n        author: null,\n        intent: intentData.intent,\n        original_question: intentData.original_question,\n        confidence: intentData.confidence\n      }\n    }];\n  }\n  authorData = dbResults[0];\n}\n\n// 3. Make sure it contains actual author fields (in case of empty fallback object)\nif (!authorData.email && !authorData.author_name) {\n  return [{\n    json: {\n      found: false,\n      author: null,\n      intent: intentData.intent,\n      original_question: intentData.original_question,\n      confidence: intentData.confidence\n    }\n  }];\n}\n\n// 4. Author successfully found!\nreturn [{\n  json: {\n    found: true,\n    author: authorData,\n    intent: intentData.intent,\n    original_question: intentData.original_question,\n    confidence: intentData.confidence\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        160
+      ],
+      "id": "5c5cc549-5265-456f-945e-5aadcee87f1e",
+      "name": "Check DB Result"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Authorization\": \"Bearer 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\",\n  \"Content-Type\": \"application/json\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a helpful customer support assistant for BookLeaf Publishing.\\n\\nAnswer the author's query based on their data. Be warm, professional, and specific. If data is not found, apologize and ask them to verify their email.\\n\\nKNOWLEDGE BASE FAQ:\\n- Challenge details: 21-Day Poetry Writing Challenge. Cost: ₹1999. Minimum 18 poems required. Writers of all ages are welcome. Pen names are allowed.\\n- Extension: Authors automatically get a 7-day extension if they can't finish in 21 days.\\n- Languages: Only English, Hindi, and Hinglish. Regional languages (Urdu, Marathi, Bengali, etc.) are NOT accepted.\\n- Refund Policy: Unconditional refund within 14 days of registration. No refunds after 14 days.\\n- Publishing Timeline:\\n  * Standard route: 30 to 45 business days. Status remains 'In Review' until published.\\n  * Bestseller Breakthrough Package: 18 to 22 business days.\\n- Book Distribution:\\n  * Default: Paperback and eBook available on BookLeaf Bookstore. eBooks are exclusive to BookLeaf Bookstore.\\n  * Global Distribution (Add-on): Paperback listed on Amazon (all 13 marketplaces), Barnes & Noble, and Ingram.\\n- Author Copies: Authors in India get 1 free copy via coupon (usually free shipping). International authors do not get free copies.\\n- Add-on Prices (India / International):\\n  * Bestseller Breakthrough: ₹11,999 / $249 (includes 100% royalty, manager, Prime placement, award)\\n  * Global Dist + Award + Copyright: ₹8,899 / $135\\n  * Global Distribution: ₹5,499 / $75\\n  * Emily Dickinson Award: ₹4,499 / $115\\n  * Post-Publishing Changes: ₹2,150 / $30\\n  * Indian Paperback Distribution (for Int'l authors): $35\\n- Portal & Submission:\\n  * Login Details: Sent within 2 minutes of payment. Check Spam/Junk.\\n  * Returning Authors: Dashboard remains active. Must request support to enable 'Add a New Book' button.\\n  * Formatting: Rearranging poems requires deleting and re-uploading in order. Dedication, Preface, and Acknowledgement are mandatory sections.\\n- Royalties: 80% on profits (100% with Bestseller). Paid quarterly (Jan, Apr, Jul, Oct).\\n\\nKeep response under 100 words. Sound human, professional, and helpful.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Author question: {{ $json.original_question }}\\n\\nAuthor data from database:\\n- ID: {{ $json.author?.author_id || 'N/A' }}\\n- Email: {{ $json.author?.email || 'N/A' }}\\n- Book Title: {{ $json.author?.book_title || 'N/A' }}\\n- Submission Date: {{ $json.author?.final_submission_date || 'N/A' }}\\n- Live Date: {{ $json.author?.book_live_date || 'N/A' }}\\n- Royalty Status: {{ $json.author?.royalty_status || 'N/A' }}\\n- ISBN: {{ $json.author?.isbn || 'N/A' }}\\n- Add-on Services: {{ $json.author?.add_on_services || 'N/A' }}\\n- Stage: {{ $json.author?.publishing_stage || 'N/A' }}\\n\\nData found: {{ $json.found }}\\nIntent: {{ $json.intent }}\\n\\nGenerate a helpful response:\"\n    }\n  ],\n  \"max_tokens\": 300,\n  \"temperature\": 0.7\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -160,
+        160
+      ],
+      "id": "b327a85c-7036-4811-a4d9-d06b84b3135b",
+      "name": "Generate Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "const groqResponse = $input.first().json;\nconst dbData = $('Check DB Result').first().json;\n\nconst answer = groqResponse.choices[0].message.content;\n\nreturn [{\n  json: {\n    success: true,\n    question: dbData.original_question,\n    answer: answer,\n    intent: dbData.intent,\n    confidence: dbData.confidence,\n    author_found: dbData.found,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        160
+      ],
+      "id": "29e007c1-0d51-450a-8503-13de098790e3",
+      "name": "Build Response"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "13MVQYEZv7mg_XhK1Rcy-7qB7M4P6j7VUs6Ox6V7PE8I",
+          "mode": "list",
+          "cachedResultName": "Query Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/13MVQYEZv7mg_XhK1Rcy-7qB7M4P6j7VUs6Ox6V7PE8I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/13MVQYEZv7mg_XhK1Rcy-7qB7M4P6j7VUs6Ox6V7PE8I/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.timestamp }}",
+            "Question": "={{ $json.question }}",
+            "Intent": "={{ $json.intent }}",
+            "Confidence": "={{ $json.confidence }}",
+            "Author Found": "={{ $json.author_found }}",
+            "Answer": "={{ $json.answer }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Question",
+              "displayName": "Question",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Intent",
+              "displayName": "Intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Author Found",
+              "displayName": "Author Found",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Answer",
+              "displayName": "Answer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        256,
+        160
+      ],
+      "id": "61c14ccd-2ae1-493f-9326-fd298f0cc203",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "cx4NYHnELGSFrFXJ",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"answer\": \"{{ $('Build Response').first().json.answer }}\",\n  \"intent\": \"{{ $('Build Response').first().json.intent }}\",\n  \"confidence\": \"{{ $('Build Response').first().json.confidence }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        464,
+        160
+      ],
+      "id": "f54acfe4-91c4-48f3-a108-a46e970c7da6",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.choices[0].message.content;\n\nlet parsed;\ntry {\n  parsed = JSON.parse(content);\n} catch(e) {\n  parsed = {\n    author_email: null,\n    intent: 'general_query',\n    confidence: 50\n  };\n}\n\n// Clean up string \"null\" and fall back to the webhook body email\nlet finalEmail = parsed.author_email;\nif (!finalEmail || finalEmail === 'null' || finalEmail === 'None' || finalEmail.trim() === '') {\n  finalEmail = $('Webhook').first().json.body.email || null;\n}\n\nreturn [{\n  json: {\n    author_email: finalEmail, // This will now be the clean, correct email\n    intent: parsed.intent,\n    confidence: parsed.confidence,\n    original_question: $('Webhook').first().json.body.question,\n    author_email_from_body: $('Webhook').first().json.body.email\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        -112
+      ],
+      "id": "746cb6a4-60ea-49d1-8cae-0180da36d300",
+      "name": "Parse Intent"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Intent": {
+      "main": [
+        [
+          {
+            "node": "Parse Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Supabase": {
+      "main": [
+        [
+          {
+            "node": "Check DB Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check DB Result": {
+      "main": [
+        [
+          {
+            "node": "Generate Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Response": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Intent": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7386282c-e057-4023-8ce7-13e4a77a69a0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d5546e5b9f6cbeb6bb8094ed59341cc130e3612b25f3e05386dfb68d6566041e"
+  },
+  "id": "9OCyBOz39XvJLJJ2",
+  "tags": []
+}
