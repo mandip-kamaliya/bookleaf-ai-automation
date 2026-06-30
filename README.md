@@ -1,4 +1,4 @@
-# BookLeaf Publishing — AI Automation Assignment
+# BookLeaf Publishing — AI Automation 
 
 ## AI Customer Query Bot
 
